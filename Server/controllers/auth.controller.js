@@ -1,0 +1,292 @@
+import User from "../models/User.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import nodemailer from "nodemailer";
+dotenv.config();
+
+// ─── Email Transporter ───────────────────────────────────────────────────────
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+const sendOtp = async (email, otp) => {
+  await transporter.sendMail({
+    from: `"Luxora" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Your Luxora OTP",
+    html: `
+      <h2>Your OTP is <strong>${otp}</strong></h2>
+      <p>Valid for 1 minutes. Do not share it with anyone.</p>
+    `,
+  });
+};
+
+// ─── Token Helper ─────────────────────────────────────────────────────────────
+// Call this at: verifyOtp, loginUser, googleCallback
+// NOT at: registerUser (email not verified yet)
+
+const issueTokens = (res, user) => {
+  const accessToken = jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+
+  const refreshToken = jwt.sign(
+    { id: user._id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "30d" }
+  );
+
+  // Short-lived access token
+  res.cookie("token", accessToken, {
+    httpOnly: true,
+    secure: false,
+    sameSite: "Lax",
+    maxAge: 15 * 60 * 1000, // 15 minutes
+    path: "/",
+  });
+
+  // Long-lived refresh token
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: false,
+    sameSite: "Lax",
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: "/",
+  });
+
+  return refreshToken; // return so we can save it to DB
+};
+
+// ─── Register ─────────────────────────────────────────────────────────────────
+// No token here — email not verified yet
+
+export const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, adminKey } = req.body;
+
+    const existing = await User.findOne({ email });
+    if (existing && existing.isVerified)
+      return res.status(400).json({ message: "Email already exists" });
+
+    const hashed = await bcrypt.hash(password, 10);
+    const role =
+      adminKey && adminKey === process.env.ADMIN_SECRET_KEY ? "admin" : "user";
+    const isAdmin = role === "admin";
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = new Date(Date.now() + 1 * 60 * 1000);
+
+    if (existing && !existing.isVerified) {
+      existing.name = name;
+      existing.password = hashed;
+      existing.otpCode = isAdmin ? undefined : otp;
+      existing.otpExpiry = isAdmin ? undefined : otpExpiry;
+      existing.isVerified = isAdmin;
+      await existing.save();
+    } else {
+      await User.create({
+        name,
+        email,
+        password: hashed,
+        role,
+        otpCode: isAdmin ? undefined : otp,
+        otpExpiry: isAdmin ? undefined : otpExpiry,
+        isVerified: isAdmin,
+      });
+    }
+
+    if (!isAdmin) await sendOtp(email, otp);
+
+    res.status(200).json({
+      message: isAdmin ? "Admin account created" : "OTP sent to email",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ─── Verify OTP ───────────────────────────────────────────────────────────────
+// Issues tokens here → user is auto-logged in after registration, no re-login needed
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    if (user.otpCode !== otp)
+      return res.status(400).json({ message: "Invalid OTP" });
+
+    if (user.otpExpiry < new Date())
+      return res.status(400).json({ message: "OTP expired" });
+
+    user.isVerified = true;
+    user.otpCode = undefined;
+    user.otpExpiry = undefined;
+
+    // ✅ Issue both tokens — user is now logged in automatically
+    const refreshToken = issueTokens(res, user);
+    user.refreshToken = refreshToken;
+
+    await user.save();
+
+    res.json({ message: "Email verified.", role: user.role, id: user._id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ─── Resend OTP ───────────────────────────────────────────────────────────────
+
+export const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    if (user.isVerified)
+      return res.status(400).json({ message: "Already verified" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otpCode = otp;
+    user.otpExpiry = new Date(Date.now() + 1 * 60 * 1000);
+    await user.save();
+
+    await sendOtp(email, otp);
+    res.json({ message: "OTP resent" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+
+export const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(400).json({ message: "User not found" });
+
+    if (!user.isVerified)
+      return res.status(403).json({ message: "Please verify your email first" });
+
+    if (user.status === "blocked")
+      return res.status(403).json({ message: "Blocked user" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Wrong password" });
+
+    // ✅ Issue both tokens
+    const refreshToken = issueTokens(res, user);
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.json({ role: user.role, id: user._id });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ─── Refresh Access Token ─────────────────────────────────────────────────────
+// Frontend calls this automatically when access token expires
+
+export const refreshAccessToken = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token)
+      return res.status(401).json({ message: "No refresh token" });
+
+    const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+    const user = await User.findById(decoded.id);
+
+    // Must match what's stored in DB (prevents reuse of old tokens)
+    if (!user || user.refreshToken !== token)
+      return res.status(403).json({ message: "Invalid refresh token" });
+
+    // Issue a new access token only (refresh token stays the same)
+    const newAccessToken = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.cookie("token", newAccessToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "Lax",
+      maxAge: 15 * 60 * 1000,
+      path: "/",
+    });
+
+    res.json({ message: "Token refreshed" });
+  } catch (err) {
+    // Refresh token itself expired → force re-login
+    res.status(403).json({ message: "Session expired, please log in again" });
+  }
+};
+
+// ─── Get Me ───────────────────────────────────────────────────────────────────
+
+export const getMe = async (req, res) => {
+  res.json({
+    id: req.user._id,
+    role: req.user.role,
+    name: req.user.name,
+    email: req.user.email,
+    isGoogleUser: req.user.provider === "google",
+  });
+};
+
+// ─── Logout ───────────────────────────────────────────────────────────────────
+// Clears both cookies and removes refresh token from DB
+
+export const logoutUser = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (token) {
+      const user = await User.findOne({ refreshToken: token });
+      if (user) {
+        user.refreshToken = undefined;
+        await user.save();
+      }
+    }
+  } catch (_) {
+    // Don't block logout if DB fails
+  }
+
+  res.clearCookie("token", { httpOnly: true, sameSite: "Lax", secure: false });
+  res.clearCookie("refreshToken", { httpOnly: true, sameSite: "Lax", secure: false });
+  res.json({ message: "Logged out" });
+};
+
+// ─── Google Callback ──────────────────────────────────────────────────────────
+
+export const googleCallback = async (req, res) => {
+  if (!req.user) {
+    return res.redirect("http://localhost:5173/login?error=admin_blocked");
+  }
+
+  // ✅ Issue both tokens
+  const refreshToken = issueTokens(res, req.user);
+  req.user.refreshToken = refreshToken;
+  await req.user.save();
+
+  res.redirect("http://localhost:5173/home");
+};
