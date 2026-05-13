@@ -193,7 +193,6 @@ export const loginUser = async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: "Wrong password" });
 
-    // ✅ Issue both tokens
     const refreshToken = issueTokens(res, user);
     user.refreshToken = refreshToken;
     await user.save();
@@ -204,7 +203,7 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// ─── Refresh Access Token ─────────────────────────────────────────────────────
+
 // Frontend calls this automatically when access token expires
 
 export const refreshAccessToken = async (req, res) => {
@@ -216,11 +215,11 @@ export const refreshAccessToken = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
 
-    // Must match what's stored in DB (prevents reuse of old tokens)
+    
     if (!user || user.refreshToken !== token)
       return res.status(403).json({ message: "Invalid refresh token" });
 
-    // Issue a new access token only (refresh token stays the same)
+    
     const newAccessToken = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
@@ -242,7 +241,7 @@ export const refreshAccessToken = async (req, res) => {
   }
 };
 
-// ─── Get Me ───────────────────────────────────────────────────────────────────
+
 
 export const getMe = async (req, res) => {
   res.json({
@@ -254,8 +253,7 @@ export const getMe = async (req, res) => {
   });
 };
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
-// Clears both cookies and removes refresh token from DB
+
 
 export const logoutUser = async (req, res) => {
   try {
@@ -283,7 +281,7 @@ export const googleCallback = async (req, res) => {
     return res.redirect("http://localhost:5173/login?error=admin_blocked");
   }
 
-  // ✅ Issue both tokens
+
   const refreshToken = issueTokens(res, req.user);
   req.user.refreshToken = refreshToken;
   await req.user.save();

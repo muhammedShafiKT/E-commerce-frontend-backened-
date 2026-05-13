@@ -1,4 +1,4 @@
-import express from "express";
+import express, { application } from "express";
 import {
   getCart,
   addToCart,
@@ -16,6 +16,8 @@ router.post("/add", protect, addToCart);
 router.put("/increase", protect, increaseQty);
 router.put("/decrease", protect, decreaseQty);
 router.delete("/:productId", protect, removeItem);
-router.delete("/", protect, clearCart); // ✅ added
+router.delete("/", protect, clearCart); 
 
 export default router;
+
+

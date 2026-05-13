@@ -11,7 +11,7 @@ import {
 
 const router = express.Router();
 
-// All routes below: must be logged in AND be superadmin
+// All routes will use this
 router.use(protect, requireSuperAdmin);
 
 router.post("/create-admin", createAdmin);
@@ -19,4 +19,4 @@ router.get("/admins", listAdmins);
 router.patch("/admins/:id/block", toggleAdminBlock);
 router.delete("/admins/:id", deleteAdmin);
 
-export default router;
+export default router;  
