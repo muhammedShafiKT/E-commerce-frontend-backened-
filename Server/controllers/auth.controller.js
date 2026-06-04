@@ -2,20 +2,14 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendOtp = async (email, otp) => {
-  await transporter.sendMail({
-    from: `"Luxora" <${process.env.EMAIL_USER}>`,
+  await resend.emails.send({
+    from: "Luxora <onboarding@resend.dev>",
     to: email,
     subject: "Your Luxora OTP",
     html: `
@@ -54,7 +48,6 @@ const issueTokens = (res, user) => {
     path: "/",
   });
 
-  // ✅ Return accessToken so we can send it in response body
   return { refreshToken, accessToken };
 };
 
@@ -121,7 +114,6 @@ export const verifyOtp = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    // ✅ Return accessToken in body
     res.json({ message: "Email verified.", role: user.role, id: user._id, accessToken });
   } catch (err) {
     console.error(err);
@@ -165,7 +157,6 @@ export const loginUser = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    // ✅ Return accessToken in body
     res.json({ role: user.role, id: user._id, accessToken });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
@@ -197,7 +188,6 @@ export const refreshAccessToken = async (req, res) => {
       path: "/",
     });
 
-    // ✅ Return new accessToken in body too
     res.json({ message: "Token refreshed", accessToken: newAccessToken });
   } catch (err) {
     res.status(403).json({ message: "Session expired, please log in again" });
@@ -240,6 +230,5 @@ export const googleCallback = async (req, res) => {
   req.user.refreshToken = refreshToken;
   await req.user.save();
 
-  // ✅ Pass accessToken in URL for frontend to store
   res.redirect(`${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}&accessToken=${accessToken}`);
 };

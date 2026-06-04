@@ -1,16 +1,11 @@
-// controllers/adminController.js
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import dotenv from "dotenv";
 dotenv.config();
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// POST /api/admin/create-admin  (superadmin only)
 export const createAdmin = async (req, res) => {
   try {
     const { name, email } = req.body;
@@ -19,7 +14,6 @@ export const createAdmin = async (req, res) => {
     if (existing)
       return res.status(400).json({ message: "Email already in use" });
 
-    // Generate a temporary password
     const tempPassword = Math.random().toString(36).slice(-10) + "A1!";
     const hashed = await bcrypt.hash(tempPassword, 10);
 
@@ -28,12 +22,11 @@ export const createAdmin = async (req, res) => {
       email,
       password: hashed,
       role: "admin",
-      isVerified: true,   // superadmin vouches — no OTP needed
+      isVerified: true,
     });
 
-    // Email the temp password to the new admin
-    await transporter.sendMail({
-      from: `"Luxora" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: "Luxora <onboarding@resend.dev>",
       to: email,
       subject: "Your Luxora Admin Account",
       html: `
@@ -51,7 +44,6 @@ export const createAdmin = async (req, res) => {
   }
 };
 
-// GET /api/admin/admins  (superadmin only)
 export const listAdmins = async (req, res) => {
   try {
     const admins = await User.find({ role: "admin" })
@@ -62,7 +54,6 @@ export const listAdmins = async (req, res) => {
   }
 };
 
-// PATCH /api/admin/admins/:id/block  (superadmin only)
 export const toggleAdminBlock = async (req, res) => {
   try {
     const admin = await User.findById(req.params.id);
@@ -77,7 +68,6 @@ export const toggleAdminBlock = async (req, res) => {
   }
 };
 
-// DELETE /api/admin/admins/:id  (superadmin only)
 export const deleteAdmin = async (req, res) => {
   try {
     const admin = await User.findById(req.params.id);
