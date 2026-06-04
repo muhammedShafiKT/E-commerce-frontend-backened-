@@ -5,8 +5,6 @@ import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 dotenv.config();
 
-// ─── Email Transporter ───────────────────────────────────────────────────────
-
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -22,12 +20,10 @@ const sendOtp = async (email, otp) => {
     subject: "Your Luxora OTP",
     html: `
       <h2>Your OTP is <strong>${otp}</strong></h2>
-      <p>Valid for 1 minutes. Do not share it with anyone.</p>
+      <p>Valid for 1 minute. Do not share it with anyone.</p>
     `,
   });
 };
-
-// ─── Token Helper ─────────────────────────────────────────────────────────────
 
 const issueTokens = (res, user) => {
   const accessToken = jwt.sign(
@@ -58,10 +54,9 @@ const issueTokens = (res, user) => {
     path: "/",
   });
 
-  return refreshToken;
+  // ✅ Return accessToken so we can send it in response body
+  return { refreshToken, accessToken };
 };
-
-// ─── Register ─────────────────────────────────────────────────────────────────
 
 export const registerUser = async (req, res) => {
   try {
@@ -109,50 +104,38 @@ export const registerUser = async (req, res) => {
   }
 };
 
-// ─── Verify OTP ───────────────────────────────────────────────────────────────
-
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
-
-    if (user.otpCode !== otp)
-      return res.status(400).json({ message: "Invalid OTP" });
-
-    if (user.otpExpiry < new Date())
-      return res.status(400).json({ message: "OTP expired" });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.otpCode !== otp) return res.status(400).json({ message: "Invalid OTP" });
+    if (user.otpExpiry < new Date()) return res.status(400).json({ message: "OTP expired" });
 
     user.isVerified = true;
     user.otpCode = undefined;
     user.otpExpiry = undefined;
 
-    const refreshToken = issueTokens(res, user);
+    const { refreshToken, accessToken } = issueTokens(res, user);
     user.refreshToken = refreshToken;
-
     await user.save();
 
-    res.json({ message: "Email verified.", role: user.role, id: user._id });
+    // ✅ Return accessToken in body
+    res.json({ message: "Email verified.", role: user.role, id: user._id, accessToken });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ─── Resend OTP ───────────────────────────────────────────────────────────────
-
 export const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
-
-    if (user.isVerified)
-      return res.status(400).json({ message: "Already verified" });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.isVerified) return res.status(400).json({ message: "Already verified" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = otp;
@@ -166,43 +149,33 @@ export const resendOtp = async (req, res) => {
   }
 };
 
-// ─── Login ────────────────────────────────────────────────────────────────────
-
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(400).json({ message: "User not found" });
-
-    if (!user.isVerified)
-      return res.status(403).json({ message: "Please verify your email first" });
-
-    if (user.status === "blocked")
-      return res.status(403).json({ message: "Blocked user" });
+    if (!user) return res.status(400).json({ message: "User not found" });
+    if (!user.isVerified) return res.status(403).json({ message: "Please verify your email first" });
+    if (user.status === "blocked") return res.status(403).json({ message: "Blocked user" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Wrong password" });
+    if (!isMatch) return res.status(400).json({ message: "Wrong password" });
 
-    const refreshToken = issueTokens(res, user);
+    const { refreshToken, accessToken } = issueTokens(res, user);
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.json({ role: user.role, id: user._id });
+    // ✅ Return accessToken in body
+    res.json({ role: user.role, id: user._id, accessToken });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// ─── Refresh Token ────────────────────────────────────────────────────────────
-
 export const refreshAccessToken = async (req, res) => {
   try {
     const token = req.cookies.refreshToken;
-    if (!token)
-      return res.status(401).json({ message: "No refresh token" });
+    if (!token) return res.status(401).json({ message: "No refresh token" });
 
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
@@ -224,13 +197,12 @@ export const refreshAccessToken = async (req, res) => {
       path: "/",
     });
 
-    res.json({ message: "Token refreshed" });
+    // ✅ Return new accessToken in body too
+    res.json({ message: "Token refreshed", accessToken: newAccessToken });
   } catch (err) {
     res.status(403).json({ message: "Session expired, please log in again" });
   }
 };
-
-// ─── Get Me ───────────────────────────────────────────────────────────────────
 
 export const getMe = async (req, res) => {
   res.json({
@@ -242,31 +214,32 @@ export const getMe = async (req, res) => {
   });
 };
 
-// ─── Logout ───────────────────────────────────────────────────────────────────
+export const logoutUser = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (token) {
+      const user = await User.findOne({ refreshToken: token });
+      if (user) {
+        user.refreshToken = undefined;
+        await user.save();
+      }
+    }
+  } catch (_) {}
 
-export const googleCallback = async (req, res) => {
-  if (!req.user) {
-    return res.redirect(`${process.env.CLIENT_URL}/login?error=admin_blocked`);
-  }
-
-  const refreshToken = issueTokens(res, req.user);
-  req.user.refreshToken = refreshToken;
-  await req.user.save();
-
-  // ✅ Pass role and id in URL so frontend can store them
-  res.redirect(`${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}`);
+  res.clearCookie("token", { httpOnly: true, secure: true, sameSite: "None", path: "/" });
+  res.clearCookie("refreshToken", { httpOnly: true, secure: true, sameSite: "None", path: "/" });
+  res.json({ message: "Logged out" });
 };
 
-// ─── Google Callback ──────────────────────────────────────────────────────────
-
 export const googleCallback = async (req, res) => {
   if (!req.user) {
     return res.redirect(`${process.env.CLIENT_URL}/login?error=admin_blocked`);
   }
 
-  const refreshToken = issueTokens(res, req.user);
+  const { refreshToken, accessToken } = issueTokens(res, req.user);
   req.user.refreshToken = refreshToken;
   await req.user.save();
 
-  res.redirect(`${process.env.CLIENT_URL}/home`);
+  // ✅ Pass accessToken in URL for frontend to store
+  res.redirect(`${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}&accessToken=${accessToken}`);
 };

@@ -3,15 +3,17 @@ import User from "../models/User.js";
 
 export const protect = async (req, res, next) => {
   try {
-    
-    const token = req.cookies.token;
+    // ✅ Accept token from cookie OR Authorization header
+    const token = req.cookies.token || 
+      (req.headers.authorization?.startsWith("Bearer ") 
+        ? req.headers.authorization.split(" ")[1] 
+        : null);
 
     if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
@@ -26,13 +28,11 @@ export const protect = async (req, res, next) => {
   }
 };
 
-  // admin checking
 export const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === "admin") return next();
   res.status(403).json({ message: "Access denied" });
 };
 
-// middleware/requireSuperAdmin.js
 export const requireSuperAdmin = (req, res, next) => {
   if (req.user?.role !== "superadmin")
     return res.status(403).json({ message: "Superadmin access only" });

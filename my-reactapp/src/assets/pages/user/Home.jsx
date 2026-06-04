@@ -10,16 +10,17 @@ const Home = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
-    const role = searchParams.get("role");
-    const id = searchParams.get("id");
-    if (role && id) {
-      localStorage.setItem("role", role);
-      localStorage.setItem("userId", id);
-      window.dispatchEvent(new Event("userLoggedIn"));
-      // Clean up URL params
-      setSearchParams({});
-    }
-  }, []);
+  const role = searchParams.get("role");
+  const id = searchParams.get("id");
+  const accessToken = searchParams.get("accessToken");
+  if (role && id) {
+    localStorage.setItem("role", role);
+    localStorage.setItem("userId", id);
+    if (accessToken) localStorage.setItem("accessToken", accessToken);
+    window.dispatchEvent(new Event("userLoggedIn"));
+    setSearchParams({});
+  }
+}, []);
 
   return (
     <div className="relative h-screen text-white bg-black overflow-y-auto">

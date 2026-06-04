@@ -30,32 +30,33 @@ export default function Login() {
     mode: "onBlur",
   });
 
-  const checkingfn = async (data) => {
-    try {
-      const res = await axiosInstance.post("/auth/login", {
-        email: data.email,
-        password: data.password,
-      });
+const checkingfn = async (data) => {
+  try {
+    const res = await axiosInstance.post("/auth/login", {
+      email: data.email,
+      password: data.password,
+    });
 
-      const { role } = res.data;
+    const { role, accessToken } = res.data;
 
-      window.dispatchEvent(new Event("userLoggedIn"));
-      toast.success("Login successful");
+    // ✅ Store token and role
+    if (accessToken) localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("role", role);
 
-      if (role === "admin") {
-        nav("/admin");
-      } else {
-        nav("/home");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error(
-        error.response?.data?.message || "Server error. Try again later."
-      );
+    window.dispatchEvent(new Event("userLoggedIn"));
+    toast.success("Login successful");
+
+    if (role === "admin") {
+      nav("/admin");
+    } else {
+      nav("/home");
     }
-
-    reset();
-  };
+  } catch (error) {
+    console.error("Login error:", error);
+    toast.error(error.response?.data?.message || "Server error. Try again later.");
+  }
+  reset();
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f0a07] px-4">
