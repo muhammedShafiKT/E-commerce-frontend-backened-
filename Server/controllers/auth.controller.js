@@ -2,29 +2,36 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { Resend } from "resend";
+import * as Brevo from "@getbrevo/brevo";
 dotenv.config();
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Brevo setup
+const brevoClient = new Brevo.TransactionalEmailsApi();
+brevoClient.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 const sendOtp = async (email, otp) => {
   try {
     console.log("OTP email requested for:", email);
 
-    const result = await resend.emails.send({
-      from: "Luxora <onboarding@resend.dev>",
-      to: email,
-      subject: "Your Luxora OTP",
-      html: `
-        <h2>Your OTP is ${otp}</h2>
-      `,
-    });
+    const mail = new Brevo.SendSmtpEmail();
+    mail.sender = { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL };
+    mail.to = [{ email }];
+    mail.subject = "Your Luxora OTP";
+    mail.htmlContent = `
+      <div style="font-family: serif; padding: 20px;">
+        <h2>Your OTP is <strong>${otp}</strong></h2>
+        <p>This OTP expires in 1 minute.</p>
+      </div>
+    `;
 
-    console.log("RESEND RESPONSE:", result);
-
+    const result = await brevoClient.sendTransacEmail(mail);
+    console.log("Brevo response:", result);
     return result;
   } catch (err) {
-    console.error("RESEND ERROR:", err);
+    console.error("Brevo error:", err);
     throw err;
   }
 };
@@ -113,8 +120,10 @@ export const verifyOtp = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.otpCode !== otp) return res.status(400).json({ message: "Invalid OTP" });
-    if (user.otpExpiry < new Date()) return res.status(400).json({ message: "OTP expired" });
+    if (user.otpCode !== otp)
+      return res.status(400).json({ message: "Invalid OTP" });
+    if (user.otpExpiry < new Date())
+      return res.status(400).json({ message: "OTP expired" });
 
     user.isVerified = true;
     user.otpCode = undefined;
@@ -124,7 +133,12 @@ export const verifyOtp = async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.json({ message: "Email verified.", role: user.role, id: user._id, accessToken });
+    res.json({
+      message: "Email verified.",
+      role: user.role,
+      id: user._id,
+      accessToken,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -137,7 +151,8 @@ export const resendOtp = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.isVerified) return res.status(400).json({ message: "Already verified" });
+    if (user.isVerified)
+      return res.status(400).json({ message: "Already verified" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     user.otpCode = otp;
@@ -157,8 +172,10 @@ export const loginUser = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
-    if (!user.isVerified) return res.status(403).json({ message: "Please verify your email first" });
-    if (user.status === "blocked") return res.status(403).json({ message: "Blocked user" });
+    if (!user.isVerified)
+      return res.status(403).json({ message: "Please verify your email first" });
+    if (user.status === "blocked")
+      return res.status(403).json({ message: "Blocked user" });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: "Wrong password" });
@@ -226,8 +243,18 @@ export const logoutUser = async (req, res) => {
     }
   } catch (_) {}
 
-  res.clearCookie("token", { httpOnly: true, secure: true, sameSite: "None", path: "/" });
-  res.clearCookie("refreshToken", { httpOnly: true, secure: true, sameSite: "None", path: "/" });
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None",
+    path: "/",
+  });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None",
+    path: "/",
+  });
   res.json({ message: "Logged out" });
 };
 
@@ -240,5 +267,7 @@ export const googleCallback = async (req, res) => {
   req.user.refreshToken = refreshToken;
   await req.user.save();
 
-  res.redirect(`${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}&accessToken=${accessToken}`);
+  res.redirect(
+    `${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}&accessToken=${accessToken}`
+  );
 };
