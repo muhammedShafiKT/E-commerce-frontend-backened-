@@ -244,31 +244,17 @@ export const getMe = async (req, res) => {
 
 // ─── Logout ───────────────────────────────────────────────────────────────────
 
-export const logoutUser = async (req, res) => {
-  try {
-    const token = req.cookies.refreshToken;
-    if (token) {
-      const user = await User.findOne({ refreshToken: token });
-      if (user) {
-        user.refreshToken = undefined;
-        await user.save();
-      }
-    }
-  } catch (_) {}
+export const googleCallback = async (req, res) => {
+  if (!req.user) {
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=admin_blocked`);
+  }
 
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "None",
-    path: "/",
-  });
-  res.clearCookie("refreshToken", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "None",
-    path: "/",
-  });
-  res.json({ message: "Logged out" });
+  const refreshToken = issueTokens(res, req.user);
+  req.user.refreshToken = refreshToken;
+  await req.user.save();
+
+  // ✅ Pass role and id in URL so frontend can store them
+  res.redirect(`${process.env.CLIENT_URL}/home?role=${req.user.role}&id=${req.user._id}`);
 };
 
 // ─── Google Callback ──────────────────────────────────────────────────────────

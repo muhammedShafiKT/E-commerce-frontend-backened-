@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import Luxurybackground from './Luxurybackground'
 import Maincomponent from './Maincomponent'
@@ -6,6 +7,20 @@ import Footer from './Footer';
 import Maincomponent2 from './Maincomponent2'
 
 const Home = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const role = searchParams.get("role");
+    const id = searchParams.get("id");
+    if (role && id) {
+      localStorage.setItem("role", role);
+      localStorage.setItem("userId", id);
+      window.dispatchEvent(new Event("userLoggedIn"));
+      // Clean up URL params
+      setSearchParams({});
+    }
+  }, []);
+
   return (
     <div className="relative h-screen text-white bg-black overflow-y-auto">
       <Luxurybackground />
@@ -15,7 +30,6 @@ const Home = () => {
         <Maincomponent />
         <Maincomponent2/>
         <Footer/>
-       
       </div>
     </div>
   );
