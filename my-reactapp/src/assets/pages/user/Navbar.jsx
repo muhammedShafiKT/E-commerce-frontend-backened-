@@ -43,8 +43,11 @@ const handleLogout = async () => {
     console.error("Logout error:", err);
   }
 
+  // ✅ Clear everything
+  localStorage.removeItem("accessToken");
   localStorage.removeItem("role");
   localStorage.removeItem("userId");
+  
   window.dispatchEvent(new Event("userLoggedOut"));
   setIsAuthenticated(false);
   setMobileMenuOpen(false);
