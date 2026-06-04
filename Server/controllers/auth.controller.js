@@ -8,16 +8,25 @@ dotenv.config();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendOtp = async (email, otp) => {
-  await resend.emails.send({
-    from: "Luxora <onboarding@resend.dev>",
-    to: email,
-    subject: "Your Luxora OTP",
-    html: `
-      <h2>Your OTP is <strong>${otp}</strong></h2>
-      <p>Valid for 1 minute. Do not share it with anyone.</p>
-    `,
-  });
-  console.log("Resend response:", sendOtp);
+  try {
+    console.log("OTP email requested for:", email);
+
+    const result = await resend.emails.send({
+      from: "Luxora <onboarding@resend.dev>",
+      to: email,
+      subject: "Your Luxora OTP",
+      html: `
+        <h2>Your OTP is ${otp}</h2>
+      `,
+    });
+
+    console.log("RESEND RESPONSE:", result);
+
+    return result;
+  } catch (err) {
+    console.error("RESEND ERROR:", err);
+    throw err;
+  }
 };
 
 const issueTokens = (res, user) => {
