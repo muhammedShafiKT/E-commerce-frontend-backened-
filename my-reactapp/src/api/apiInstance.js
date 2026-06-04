@@ -19,6 +19,12 @@ axiosInstance.interceptors.response.use(
   async (err) => {
     if (err.response?.status === 401 && !err.config._retry) {
       err.config._retry = true;
+
+      // Don't retry if the refresh endpoint itself failed
+      if (err.config.url?.includes("/auth/refresh")) {
+        return Promise.reject(err);
+      }
+
       try {
         const { data } = await axios.post(
           `${import.meta.env.VITE_API_URL}/api/auth/refresh`,
@@ -28,17 +34,19 @@ axiosInstance.interceptors.response.use(
         if (data.accessToken) {
           localStorage.setItem("accessToken", data.accessToken);
           err.config.headers.Authorization = `Bearer ${data.accessToken}`;
-          return axiosInstance(err.config); // ✅ only retry if token received
+          return axiosInstance(err.config);
         }
       } catch {
-        // Refresh failed — session expired, redirect to login
+        // Only redirect if user was actually logged in
+        const hadToken = localStorage.getItem("accessToken");
         localStorage.removeItem("accessToken");
-        if (window.location.pathname !== "/login") {
+        if (hadToken && window.location.pathname !== "/login") {
           window.location.href = "/login";
         }
+        // Guest user → silently reject, no redirect
       }
     }
-    return Promise.reject(err); // propagate so individual catch blocks handle it
+    return Promise.reject(err);
   }
 );
 
