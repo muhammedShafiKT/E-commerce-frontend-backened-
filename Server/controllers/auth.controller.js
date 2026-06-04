@@ -17,6 +17,7 @@ const sendOtp = async (email, otp) => {
       <p>Valid for 1 minute. Do not share it with anyone.</p>
     `,
   });
+  console.log("Resend response:", sendOtp);
 };
 
 const issueTokens = (res, user) => {
