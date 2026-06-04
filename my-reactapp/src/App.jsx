@@ -1,8 +1,8 @@
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
-import Login from './assets/pages/user/login'
-import Home from './assets/pages/user/home'
+import Login from './assets/pages/user/Login'
+import Home from './assets/pages/user/Home'
 import Products from './assets/pages/user/Products'
 import ProductUI from './assets/pages/user/ProductUI'
 import Cart from './assets/pages/user/Cart'
