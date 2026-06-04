@@ -29,7 +29,7 @@ const CouponPanel = ({ onCouponApplied, activeCart, baseTotal }) => {
     setStatus(null);
     try {
       const { data } = await axios.post(
-        "/api/coupon/apply",
+        "/coupon/apply",
         { couponcode: code.trim(), items: activeCart, total: baseTotal },
         { withCredentials: true }
       );
