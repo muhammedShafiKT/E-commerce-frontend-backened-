@@ -13,7 +13,7 @@ import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
-router.get("/",protect, getProducts);                                          // public
+router.get("/", getProducts);                                          // public
 router.get("/admin/all", allproducts);                                 // admin — no protect to avoid token issues
 router.post("/", protect, upload.single("image"), createProduct);
 router.get("/:id", getProductById);
