@@ -8,14 +8,18 @@ export const useWishlist = () => useContext(WishlistContext);
 export const WishlistProvider = ({ children }) => {
   const [wishlist, setWishlist] = useState([]);
 
-  const fetchWishlist = async () => {
-    try {
-      const res = await axiosInstance.get("/wishlist");
-      setWishlist(res.data);
-    } catch (err) {
+const fetchWishlist = async () => {
+  try {
+    const res = await axiosInstance.get("/wishlist");
+    setWishlist(Array.isArray(res.data) ? res.data : []);
+  } catch (err) {
+    if (err.response?.status === 401) {
+      setWishlist([]); // silent — don't let interceptor redirect
+    } else {
       console.error("Fetch wishlist error:", err);
     }
-  };
+  }
+};
 
   const addToWishlist = async (product) => {
     try {

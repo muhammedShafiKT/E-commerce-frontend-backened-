@@ -5,7 +5,7 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// ✅ Attach token from localStorage to every request
+// Attach token from localStorage to every request
 axiosInstance.interceptors.request.use((config) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
@@ -28,15 +28,17 @@ axiosInstance.interceptors.response.use(
         if (data.accessToken) {
           localStorage.setItem("accessToken", data.accessToken);
           err.config.headers.Authorization = `Bearer ${data.accessToken}`;
+          return axiosInstance(err.config); // ✅ only retry if token received
         }
-        return axiosInstance(err.config);
       } catch {
+        // Refresh failed — session expired, redirect to login
+        localStorage.removeItem("accessToken");
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";
         }
       }
     }
-    return Promise.reject(err);
+    return Promise.reject(err); // propagate so individual catch blocks handle it
   }
 );
 
