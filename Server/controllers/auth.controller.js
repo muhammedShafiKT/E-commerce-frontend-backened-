@@ -28,8 +28,6 @@ const sendOtp = async (email, otp) => {
 };
 
 // ─── Token Helper ─────────────────────────────────────────────────────────────
-// Call this at: verifyOtp, loginUser, googleCallback
-// NOT at: registerUser (email not verified yet)
 
 const issueTokens = (res, user) => {
   const accessToken = jwt.sign(
@@ -44,29 +42,26 @@ const issueTokens = (res, user) => {
     { expiresIn: "30d" }
   );
 
-  // Short-lived access token
   res.cookie("token", accessToken, {
     httpOnly: true,
-    secure: false,
-    sameSite: "Lax",
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    secure: true,
+    sameSite: "None",
+    maxAge: 15 * 60 * 1000,
     path: "/",
   });
 
-  // Long-lived refresh token
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: false,
-    sameSite: "Lax",
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    secure: true,
+    sameSite: "None",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
     path: "/",
   });
 
-  return refreshToken; // return so we can save it to DB
+  return refreshToken;
 };
 
 // ─── Register ─────────────────────────────────────────────────────────────────
-// No token here — email not verified yet
 
 export const registerUser = async (req, res) => {
   try {
@@ -115,7 +110,6 @@ export const registerUser = async (req, res) => {
 };
 
 // ─── Verify OTP ───────────────────────────────────────────────────────────────
-// Issues tokens here → user is auto-logged in after registration, no re-login needed
 
 export const verifyOtp = async (req, res) => {
   try {
@@ -135,7 +129,6 @@ export const verifyOtp = async (req, res) => {
     user.otpCode = undefined;
     user.otpExpiry = undefined;
 
-    // ✅ Issue both tokens — user is now logged in automatically
     const refreshToken = issueTokens(res, user);
     user.refreshToken = refreshToken;
 
@@ -203,8 +196,7 @@ export const loginUser = async (req, res) => {
   }
 };
 
-
-// Frontend calls this automatically when access token expires
+// ─── Refresh Token ────────────────────────────────────────────────────────────
 
 export const refreshAccessToken = async (req, res) => {
   try {
@@ -215,11 +207,9 @@ export const refreshAccessToken = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
 
-    
     if (!user || user.refreshToken !== token)
       return res.status(403).json({ message: "Invalid refresh token" });
 
-    
     const newAccessToken = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
@@ -228,20 +218,19 @@ export const refreshAccessToken = async (req, res) => {
 
     res.cookie("token", newAccessToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
+      secure: true,
+      sameSite: "None",
       maxAge: 15 * 60 * 1000,
       path: "/",
     });
 
     res.json({ message: "Token refreshed" });
   } catch (err) {
-    // Refresh token itself expired → force re-login
     res.status(403).json({ message: "Session expired, please log in again" });
   }
 };
 
-
+// ─── Get Me ───────────────────────────────────────────────────────────────────
 
 export const getMe = async (req, res) => {
   res.json({
@@ -253,7 +242,7 @@ export const getMe = async (req, res) => {
   });
 };
 
-
+// ─── Logout ───────────────────────────────────────────────────────────────────
 
 export const logoutUser = async (req, res) => {
   try {
@@ -265,12 +254,20 @@ export const logoutUser = async (req, res) => {
         await user.save();
       }
     }
-  } catch (_) {
-    // Don't block logout if DB fails
-  }
+  } catch (_) {}
 
-  res.clearCookie("token", { httpOnly: true, sameSite: "Lax", secure: false });
-  res.clearCookie("refreshToken", { httpOnly: true, sameSite: "Lax", secure: false });
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None",
+    path: "/",
+  });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None",
+    path: "/",
+  });
   res.json({ message: "Logged out" });
 };
 
@@ -278,13 +275,12 @@ export const logoutUser = async (req, res) => {
 
 export const googleCallback = async (req, res) => {
   if (!req.user) {
-    return res.redirect("http://localhost:5173/login?error=admin_blocked");
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=admin_blocked`);
   }
-
 
   const refreshToken = issueTokens(res, req.user);
   req.user.refreshToken = refreshToken;
   await req.user.save();
 
-  res.redirect("http://localhost:5173/home");
+  res.redirect(`${process.env.CLIENT_URL}/home`);
 };
