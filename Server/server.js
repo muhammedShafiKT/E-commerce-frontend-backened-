@@ -13,28 +13,36 @@ import orderRoutes from "./routes/order.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
-import superadminRoutes from "./routes/superadmin.routes.js"
-import couponRoutes from "./routes/coupon.routes.js"
-import offerRoutes from "./routes/offer.routes.js"
+import superadminRoutes from "./routes/superadmin.routes.js";
+import couponRoutes from "./routes/coupon.routes.js";
+import offerRoutes from "./routes/offer.routes.js";
+
 dotenv.config({ path: "./.env" });
 
 const app = express();
 
 app.use(cors({
-  origin: "https://luxoraaa.vercel.app",
+  origin: process.env.CLIENT_URL,
   credentials: true,
 }));
+
 app.use(express.json());
 app.use(cookieParser());
+
+app.set("trust proxy", 1); // ✅ required on Render
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
+    secure: true,      // ✅ required for cross-domain
+    sameSite: "none",  // ✅ required for cross-domain
     maxAge: 7 * 24 * 60 * 60 * 1000,
   }
 }));
+
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -51,7 +59,5 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/admin", superadminRoutes);
 app.use("/api/coupon", couponRoutes);
 app.use("/api/offers", offerRoutes);
-
-
 
 app.listen(3001, () => console.log("Server running on 3001"));
