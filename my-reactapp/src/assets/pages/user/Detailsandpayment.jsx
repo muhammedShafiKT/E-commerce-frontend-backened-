@@ -4,7 +4,7 @@ import { useCart } from "./Cartprovider.jsx";
 import { Navbar } from "./Navbar.jsx";
 import toast from "react-hot-toast";
 import axiosInstance from "../../../api/apiInstance.js";
-import axios from "axios";
+
 
 /* ─── Coupon Panel ─── */
 const CouponPanel = ({ onCouponApplied, activeCart, baseTotal }) => {
@@ -28,11 +28,10 @@ const CouponPanel = ({ onCouponApplied, activeCart, baseTotal }) => {
     setApplying(true);
     setStatus(null);
     try {
-      const { data } = await axios.post(
-        "/coupon/apply",
-        { couponcode: code.trim(), items: activeCart, total: baseTotal },
-        { withCredentials: true }
-      );
+    const { data } = await axiosInstance.post(
+  "/coupon/apply",
+  { couponcode: code.trim(), items: activeCart, total: baseTotal },
+);
       setStatus({ type: "success", msg: data.coupon, discount: data.discount, final: data.Finaltotal });
       setApplied(true);
       onCouponApplied(data.Finaltotal, data.discount);
