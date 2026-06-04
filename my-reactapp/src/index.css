@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+/* REMOVED the @layer base with overflow: hidden */
+
+/* REMOVED the html, body overflow: hidden */
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(200, 169, 126, 0.05) 0%,
+    rgba(200, 169, 126, 0.15) 50%,
+    rgba(200, 169, 126, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
