@@ -36,13 +36,9 @@ export const Navbar = () => {
     setMobileMenuOpen(false);
   };
 
-  const handleLogout = async () => {
+const handleLogout = async () => {
   try {
-    await axios.post(
-      "http://localhost:3001/api/auth/logout",
-      {},
-      { withCredentials: true } // ✅ clears the cookie on server
-    );
+    await axiosInstance.post("/auth/logout", {}, { withCredentials: true });
   } catch (err) {
     console.error("Logout error:", err);
   }

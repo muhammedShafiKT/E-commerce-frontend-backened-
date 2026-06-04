@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import axiosInstance from "../../../api/apiInstance";
 
 const registerSchema = yup.object({
   name: yup
@@ -43,15 +44,11 @@ export default function Register() {
   // ── STEP 1: Submit registration form ──────────────────────────
   const userdetailsadd = async (data) => {
     try {
-      await axios.post(
-        "http://localhost:3001/api/auth/register",
-        {
-          name: data.name,
-          email: data.email,
-          password: data.password,
-        },
-        { withCredentials: true }
-      );
+    await axiosInstance.post("/auth/register", {
+  name: data.name,
+  email: data.email,
+  password: data.password,
+});
       setEmail(data.email);
       toast.success("OTP sent to your email");
       setStep("otp");
@@ -65,11 +62,7 @@ export default function Register() {
   const verifyOtp = async () => {
     if (otp.length !== 6) return toast.error("Enter a valid 6-digit OTP");
     try {
-      await axios.post(
-        "http://localhost:3001/api/auth/verify-otp",
-        { email, otp },
-        { withCredentials: true } // saves the cookie the server sets
-      );
+   await axiosInstance.post("/auth/verify-otp", { email, otp });
       toast.success("Welcome to Luxora!");
       navigate("/home");
     } catch (err) {
@@ -81,11 +74,7 @@ export default function Register() {
   const resendOtp = async () => {
     setResending(true);
     try {
-      await axios.post(
-        "http://localhost:3001/api/auth/resend-otp",
-        { email },
-        { withCredentials: true }
-      );
+await axiosInstance.post("/auth/resend-otp", { email });
       toast.success("OTP resent");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to resend");

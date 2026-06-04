@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import axiosInstance from "../../../api/apiInstance";
 
 const adminRegisterSchema = yup.object({
   name: yup.string().trim().required("Name is required").min(2, "Name must be at least 2 characters"),
@@ -28,7 +29,7 @@ export default function AdminRegister() {
 
   const userdetailsadd = async (data) => {
     try {
-      await axios.post("http://localhost:3001/api/auth/register", {
+      await axiosInstance.post("/auth/register", {
         name: data.name,
         email: data.email,
         password: data.password,
