@@ -2,33 +2,37 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const SibApiV3Sdk = require("@getbrevo/brevo");
 dotenv.config();
-
-// Brevo setup
-const brevoClient = new SibApiV3Sdk.TransactionalEmailsApi();
-brevoClient.setApiKey(
-  SibApiV3Sdk.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY
-);
 
 const sendOtp = async (email, otp) => {
   try {
     console.log("OTP email requested for:", email);
-    const mail = new SibApiV3Sdk.SendSmtpEmail();
-    mail.sender = { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL };
-    mail.to = [{ email }];
-    mail.subject = "Your Luxora OTP";
-    mail.htmlContent = `
-      <div style="font-family: serif; padding: 20px;">
-        <h2>Your OTP is <strong>${otp}</strong></h2>
-        <p>This OTP expires in 1 minute.</p>
-      </div>
-    `;
-    const result = await brevoClient.sendTransacEmail(mail);
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email }],
+        subject: "Your Luxora OTP",
+        htmlContent: `
+          <div style="font-family: serif; padding: 20px;">
+            <h2>Your OTP is <strong>${otp}</strong></h2>
+            <p>This OTP expires in 1 minute.</p>
+          </div>
+        `,
+      }),
+    });
+
+    const result = await response.json();
     console.log("Brevo response:", result);
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to send email");
+    }
+
     return result;
   } catch (err) {
     console.error("Brevo error:", err);
