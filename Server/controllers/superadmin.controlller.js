@@ -1,15 +1,44 @@
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
-import * as Brevo from "@getbrevo/brevo";
 dotenv.config();
 
-// Brevo setup
-const brevoClient = new Brevo.TransactionalEmailsApi();
-brevoClient.setApiKey(
-  Brevo.TransactionalEmailsApiApiKeys.apiKey,
-  process.env.BREVO_API_KEY
-);
+const sendAdminCredentials = async (email, name, tempPassword) => {
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email, name }],
+        subject: "Your Luxora Admin Account",
+        htmlContent: `
+          <div style="font-family: serif; padding: 20px;">
+            <h2>Welcome, ${name}</h2>
+            <p>Your admin account has been created.</p>
+            <p>Temporary password: <strong>${tempPassword}</strong></p>
+            <p>Please log in and change your password immediately.</p>
+          </div>
+        `,
+      }),
+    });
+
+    const result = await response.json();
+    console.log("Brevo response:", result);
+
+    if (!response.ok) {
+      throw new Error(result.message || "Failed to send email");
+    }
+
+    return result;
+  } catch (err) {
+    console.error("Brevo error:", err);
+    throw err;
+  }
+};
 
 export const createAdmin = async (req, res) => {
   try {
@@ -30,20 +59,7 @@ export const createAdmin = async (req, res) => {
       isVerified: true,
     });
 
-    const mail = new Brevo.SendSmtpEmail();
-    mail.sender = { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL };
-    mail.to = [{ email, name }];
-    mail.subject = "Your Luxora Admin Account";
-    mail.htmlContent = `
-      <div style="font-family: serif; padding: 20px;">
-        <h2>Welcome, ${name}</h2>
-        <p>Your admin account has been created.</p>
-        <p>Temporary password: <strong>${tempPassword}</strong></p>
-        <p>Please log in and change your password immediately.</p>
-      </div>
-    `;
-
-    await brevoClient.sendTransacEmail(mail);
+    await sendAdminCredentials(email, name, tempPassword);
 
     res.status(201).json({ message: "Admin created and credentials emailed" });
   } catch (err) {
