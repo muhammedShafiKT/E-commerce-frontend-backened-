@@ -2,13 +2,13 @@ import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import * as Brevo from "@getbrevo/brevo";
+import { TransactionalEmailsApi, SendSmtpEmail, TransactionalEmailsApiApiKeys } from "@getbrevo/brevo";
 dotenv.config();
 
 // Brevo setup
-const brevoClient = new Brevo.TransactionalEmailsApi();
+const brevoClient = new TransactionalEmailsApi();
 brevoClient.setApiKey(
-  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  TransactionalEmailsApiApiKeys.apiKey,
   process.env.BREVO_API_KEY
 );
 
@@ -16,7 +16,7 @@ const sendOtp = async (email, otp) => {
   try {
     console.log("OTP email requested for:", email);
 
-    const mail = new Brevo.SendSmtpEmail();
+    const mail = new SendSmtpEmail();
     mail.sender = { name: "Luxora", email: process.env.BREVO_SENDER_EMAIL };
     mail.to = [{ email }];
     mail.subject = "Your Luxora OTP";
